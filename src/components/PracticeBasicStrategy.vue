@@ -2,57 +2,94 @@
 
 import { ref } from "vue"
 import { BasicStrategy, loadFullPractice } from "./basicstrategy"
+import { Card } from "./cards"
 import { Play } from "./play"
-import Card from "./Card.vue"
+import CardView from "./CardView.vue"
 import CrossOut from "./icons/CrossOut.vue"
 
 const strategy = new BasicStrategy()
-let practiceCards = loadFullPractice(true)
-let discardPile = []
+let practiceCards: Card[][] = loadFullPractice(true)
+let discardPile: Card[][] = []
+let startTime: Date|null = null
+let interval: Date|null = null
 
-const hands = ref({
+type LastHand = {
+    player: Function,
+    dealer: Function,
+    move: Play|null,
+    expectedMove: Play|null,
+    time: Function,
+}
+
+type Hands = {
+    dealer: Card[],
+    player: Card[],
+    lastHand: LastHand,
+    ignore: string[]
+}
+
+type Scores = {
+    correct: number,
+    incorrect: number,
+    skipped: number,
+    remaining: Function,
+    avgTime: Function,
+}
+
+const _lastHand: LastHand = {
+    player: (cards: boolean = false) => {
+        if (discardPile.length === 0) {
+            return null
+        }
+
+        const playerCards = discardPile[discardPile.length - 1]
+        if (cards) {
+            const renderCard = (c: Card) => (c.value < 10 ? c.value : c.face[0])
+            return `${renderCard(playerCards[0])} ${renderCard(playerCards[1])}`
+        }
+        else {
+            return playerCards[0].value + playerCards[1].value
+        }
+    },
+    dealer: (cards: boolean = false) => {
+        if (discardPile.length === 0) {
+            return null
+        }
+
+        const dealerCard = discardPile[discardPile.length - 1][2]
+        if (cards) {
+            return dealerCard.value < 10 ? dealerCard.value : dealerCard.face[0]
+        }
+        else {
+            return dealerCard.value
+        }
+    },
+    move: null,
+    expectedMove: null,
+    time: () => {
+        return renderTimer(null)
+    }
+}
+
+const _hands: Hands = {
     dealer: [],
     player: [],
-    lastHand: {
-        player: (cards: boolean = false) => {
-            if (discardPile.length === 0) {
-                return null
-            }
-
-            const playerCards = discardPile[discardPile.length - 1]
-            if (cards) {
-                const renderCard = (c) => (c.value < 10 ? c.value : c.face[0])
-                return `${renderCard(playerCards[0])} ${renderCard(playerCards[1])}`
-            }
-            else {
-                return playerCards[0].value + playerCards[1].value
-            }
-        },
-        dealer: (cards: boolean = false) => {
-            if (discardPile.length === 0) {
-                return null
-            }
-
-            const dealerCard = discardPile[discardPile.length - 1][2]
-            if (cards) {
-                return dealerCard.value < 10 ? dealerCard.value : dealerCard.face[0]
-            }
-            else {
-                return dealerCard.value
-            }
-        },
-        move: null,
-        expectedMove: null
-    },
+    lastHand: _lastHand,
     ignore: []
-})
+}
 
-const scores = ref({
+const _scores: Scores = {
     correct: 0,
     incorrect: 0,
     skipped: 0,
-    remaining: () => (practiceCards.length)
-})
+    remaining: () => (practiceCards.length),
+    avgTime: () => {
+        return renderTimer((scores.value.correct + scores.value.incorrect))
+    }
+}
+
+const hands = ref(_hands)
+const scores = ref(_scores)
 
 function deal() {
     let hand = practiceCards.splice(0, 1)
@@ -68,9 +105,13 @@ function deal() {
             break
         }
 
-        discardPile.push(hand)
+        discardPile.push(hand[0])
         scores.value.skipped++
         deal()
+    }
+
+    if (scores.value.correct + scores.value.incorrect === 0) {
+        startTimer
     }
 }
 
@@ -90,6 +131,8 @@ function play(move: Play) {
 }
 
 function reset() {
+    stopTimer()
+
     hands.value.player = []
     hands.value.dealer = []
     hands.value.lastHand.move = null
@@ -124,6 +167,50 @@ function filter(filter: string) {
     }
 }
 
+function renderTimer(avgBy: number|null) {
+    if (!startTime || !interval) {
+        return ""
+    }
+
+    let time = interval.getTime() - startTime.getTime()
+    if (avgBy) {
+        time = time / (scores.value.correct + scores.value.incorrect)
+    }
+
+    const segment = (t: number) => {
+        t = t / 1000
+        const secs = t % 60
+        t = t / 60
+        const mins = t % 60
+        t = t / 60
+        const hrs = t % 60
+        t = t / 60
+        return [Math.floor(hrs), Math.floor(mins), Math.floor(secs)]
+    }
+
+    if (isNaN(time)) {
+        return ""
+    }
+
+    let [hrs, mins, secs] = [...segment(time)]
+    let [hrS, minS, secS] = [...["", "", ""]]
+
+    if (hrs < 10) { hrS = "0" + hrs.toString() }
+    if (mins < 10) { minS = "0" + mins.toString() }
+    if (secs < 10) { secS = "0" + secs.toString() }
+
+    return `${hrS}:${minS}:${secS}`
+}
+
+const startTimer = setInterval(() => {
+    if (!startTime) {
+        startTime = new Date()
+    }
+    interval = new Date()
+}, 100)
+
+const stopTimer = () => clearInterval(startTimer)
+
 deal()
 
 </script>
@@ -136,6 +223,7 @@ deal()
             <h5>Incorrect: {{ scores.incorrect }}</h5>
             <h5>Skipped: {{ scores.skipped }}</h5>
             <h5>Remaining: {{ scores.remaining() }}</h5>
+            <h5>Avg. Time: {{ scores.avgTime() }}</h5>
         </div>
         <div class="bjck-practice-section-divider-large"></div>
         <div>
@@ -152,23 +240,20 @@ deal()
         <div class="bjck-practice-section-divider-large"></div>
         <div>
             <h4>Rules</h4>
-            <h5 v-if="hands.ignore.indexOf('PAIR') > -1">Ignore Pairs</h5>
-            <h5 v-if="hands.ignore.indexOf('ACE') > -1">Ignore Aces</h5>
+            <h5 v-if="hands.ignore.indexOf('PAIR') > -1">Ignore Soft</h5>
+            <h5 v-if="hands.ignore.indexOf('ACE') > -1">Ignore Split</h5>
         </div>
     </div>
-    
-    <br />
-    
 
     <br />
     <div class="bjck-practice-section">
-        <Card :suit="hands.dealer[0].suit" :face="hands.dealer[0].face" :value="hands.dealer[0].value"/>
+        <CardView :suit="hands.dealer[0].suit" :face="hands.dealer[0].face" :value="hands.dealer[0].value"/>
     </div>
     <br />
     <div class="bjck-practice-section">
-        <Card :suit="hands.player[0].suit" :face="hands.player[0].face" :value="hands.player[0].value"/>
+        <CardView :suit="hands.player[0].suit" :face="hands.player[0].face" :value="hands.player[0].value"/>
         <div class="bjck-practice-section-divider"></div>
-        <Card :suit="hands.player[1].suit" :face="hands.player[1].face" :value="hands.player[1].value"/>
+        <CardView :suit="hands.player[1].suit" :face="hands.player[1].face" :value="hands.player[1].value"/>
     </div>
 
     <br />
@@ -193,14 +278,14 @@ deal()
     <br />
     <div class="bjck-practice-section">
         <div class="bjck-practice-button" @click="filter('PAIR')">
-            PAIRS
+            SPLIT
             <div v-if="hands.ignore.indexOf('PAIR') > -1">
                 <CrossOut />
             </div>
         </div>
         <div class="bjck-practice-section-divider"></div>
         <div class="bjck-practice-button" @click="filter('ACE')">
-            ACES
+            SOFT
             <div v-if="hands.ignore.indexOf('ACE') > -1">
                 <CrossOut />
             </div>

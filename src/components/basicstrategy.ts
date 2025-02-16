@@ -1,12 +1,42 @@
 import { Card, CardFace, CardSuit } from "./cards"
 import { Play } from "./play"
 
-export function loadFullPractice(random: boolean = false) {
+function searchForArray(haystack: number[][], needle: number[]){
+    var i, j, current;
+    for(i = 0; i < haystack.length; ++i){
+      if(needle.length === haystack[i].length){
+        current = haystack[i];
+        for(j = 0; j < needle.length && needle[j] === current[j]; ++j);
+        if(j === needle.length)
+          return i;
+      }
+    }
+    return -1;
+  }
+
+export function loadFullPractice(random: boolean = false): Card[][] {
     let practice: Card[][] = []
+    let seen: number[][] = []
     Object.entries(CardFace).forEach(([_, l]) => {
+        if ([CardFace.JACK, CardFace.QUEEN, CardFace.KING].indexOf(l) > -1) {
+            return
+        }
         Object.entries(CardFace).forEach(([_, r]) => {
+            if ([CardFace.JACK, CardFace.QUEEN, CardFace.KING].indexOf(r) > -1) {
+                return
+            }
             Object.entries(CardFace).forEach(([_, d]) => {
-                practice.push([new Card(CardSuit.SPADE, l), new Card(CardSuit.SPADE, r), new Card(CardSuit.SPADE, d)])
+                const hand = [new Card(CardSuit.SPADE, l), new Card(CardSuit.SPADE, r), new Card(CardSuit.SPADE, d)]
+                const lookup = [hand[0].value, hand[1].value, hand[2].value]
+                const reverseLookup = [lookup[1], lookup[0], lookup[2]]
+                if ([CardFace.JACK, CardFace.QUEEN, CardFace.KING].indexOf(d) > -1) {
+                    return
+                }
+                else if (searchForArray(seen, lookup) > -1 || searchForArray(seen, reverseLookup) > -1) {
+                    return
+                }
+                practice.push(hand)
+                seen.push(lookup)
             })
         })
     })
@@ -94,7 +124,6 @@ export class BasicStrategy {
             case (handTotal > 17 && !isSoft && noSplit):
                 return Play.STAND
             case (handTotal < 8 && noSplit):
-                console.log("Playing HIT early")
                 return Play.HIT
             default:
                 break
@@ -110,7 +139,6 @@ export class BasicStrategy {
 
         let playerLookup = 0
         if (!noSplit && cards[0].value === cards[1].value) {
-            console.log(`Playing PAIR with hand of ${handTotal}`)
             for (let i = 0; i < this.playerPair.length; i++) {
                 if (handTotal === this.playerPair[i]) {
                     playerLookup = i
@@ -119,7 +147,6 @@ export class BasicStrategy {
             }
         }
         else if (isSoft) {
-            console.log("Playing SOFT")
             for (let i = 0; i < this.playerSoft.length; i++) {
                 if (handTotal === this.playerSoft[i]) {
                     playerLookup = i
@@ -128,7 +155,6 @@ export class BasicStrategy {
             }
         }
         else {
-            console.log(`Playing HARD with hand of ${handTotal}`)
             for (let i = 0; i < this.playerHard.length; i++) {
                 if (handTotal === this.playerHard[i]) {
                     playerLookup = i
@@ -144,9 +170,7 @@ export class BasicStrategy {
             return this.softChart[playerLookup][dealerLookup]
         }
         else if (!noSplit && cards[0].value === cards[1].value) {
-            console.log(`PAIR[${playerLookup}][${dealerLookup}]`)
             const play = this.pairChart[playerLookup][dealerLookup]
-            console.log(play)
             if (!play) {
                 return this.getPlay(cards, dealer, true)
             }
