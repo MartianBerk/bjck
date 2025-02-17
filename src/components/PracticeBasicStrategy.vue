@@ -20,6 +20,7 @@ type LastHand = {
     move: Play|null,
     expectedMove: Play|null,
     time: Function,
+    index: number|null,  // keep track of the last hand in the discard pile
 }
 
 type Hands = {
@@ -43,11 +44,11 @@ type Timer = {
 
 const _lastHand: LastHand = {
     player: (cards: boolean = false) => {
-        if (discardPile.length === 0) {
+        if (hands.value.lastHand.index === null) {
             return null
         }
 
-        const playerCards = discardPile[discardPile.length - 1]
+        const playerCards = discardPile[hands.value.lastHand.index]
         if (cards) {
             const renderCard = (c: Card) => (c.value < 10 ? c.value : c.face[0])
             return `${renderCard(playerCards[0])} ${renderCard(playerCards[1])}`
@@ -57,11 +58,11 @@ const _lastHand: LastHand = {
         }
     },
     dealer: (cards: boolean = false) => {
-        if (discardPile.length === 0) {
+        if (hands.value.lastHand.index === null) {
             return null
         }
 
-        const dealerCard = discardPile[discardPile.length - 1][2]
+        const dealerCard = discardPile[hands.value.lastHand.index][2]
         if (cards) {
             return dealerCard.value < 10 ? dealerCard.value : dealerCard.face[0]
         }
@@ -73,7 +74,8 @@ const _lastHand: LastHand = {
     expectedMove: null,
     time: () => {
         return renderTimer(null)
-    }
+    },
+    index: null
 }
 
 const _hands: Hands = {
@@ -102,19 +104,25 @@ const scores = ref(_scores)
 const timer = ref(_timer)
 
 function deal() {
+    if (practiceCards.length === 0) {
+        return
+    }
+
     let hand = practiceCards.splice(0, 1)
     hands.value.player = hand[0].slice(0, 2)
     hands.value.dealer = hand[0].slice(2)
 
     // Filtering
     while (hands.value.ignore.length > 0 && practiceCards.length > 0) {
-        if (hands.value.ignore.indexOf("PAIR") > -1 && hands.value.player[0].value !== hands.value.player[1].value) {
-            break
-        }
-        else if (hands.value.ignore.indexOf("ACE") > -1 && hands.value.player[0].value !== 11 && hands.value.player[1].value !== 11) {
-            break
-        }
-        else if (hands.value.ignore.indexOf("HARD") > -1) {
+        const isPair = hands.value.player[0].value === hands.value.player[1].value
+        const isSoft = hands.value.player[0].value === 11 || hands.value.player[1].value === 11
+        const isHard = !isSoft && !isPair
+        
+        const filterPair = hands.value.ignore.indexOf("PAIR") > -1 && isPair
+        const filterSoft = hands.value.ignore.indexOf("ACE") > -1 && isSoft
+        const filterHard = hands.value.ignore.indexOf("HARD") > -1 && isHard
+
+        if (!filterPair && !filterSoft && !filterHard) {
             break
         }
 
@@ -129,6 +137,10 @@ function deal() {
 }
 
 function play(move: Play) {
+    if (practiceCards.length === 0) {
+        return
+    }
+
     if (timer.value.paused) {
         pause()
     }
@@ -144,6 +156,7 @@ function play(move: Play) {
     hands.value.lastHand.move = move
     hands.value.lastHand.expectedMove = play
     discardPile.push(hands.value.player.concat(hands.value.dealer))
+    hands.value.lastHand.index = discardPile.length - 1
     deal()
 }
 
@@ -157,6 +170,8 @@ function reset() {
     scores.value.correct = 0
     scores.value.incorrect = 0
     scores.value.skipped = 0
+    startTime = null
+    interval = null
 
     practiceCards = loadFullPractice(true)
     discardPile = []
@@ -172,17 +187,25 @@ function filter(filter: string) {
         hands.value.ignore.push(filter)
     }
 
-    if (hands.value.ignore.indexOf("PAIR") > -1 && hands.value.player[0].value === hands.value.player[1].value) {
+    const isPair = hands.value.player[0].value === hands.value.player[1].value
+    const isSoft = hands.value.player[0].value === 11 || hands.value.player[1].value === 11
+    const isHard = !isSoft && !isPair
+    
+    const filterPair = hands.value.ignore.indexOf("PAIR") > -1 && isPair
+    const filterSoft = hands.value.ignore.indexOf("ACE") > -1 && isSoft
+    const filterHard = hands.value.ignore.indexOf("HARD") > -1 && isHard
+    
+    if (filterPair) {
         discardPile.push(hands.value.player.concat(hands.value.dealer))
         scores.value.skipped++
         deal()
     }
-    else if (hands.value.ignore.indexOf("ACE") > -1 && (hands.value.player[0].value === 11 || hands.value.player[1].value === 11)) {
+    else if (filterSoft) {
         discardPile.push(hands.value.player.concat(hands.value.dealer))
         scores.value.skipped++
         deal()
     }
-    else if (hands.value.ignore.indexOf("HARD") > -1) {
+    else if (filterHard) {
         discardPile.push(hands.value.player.concat(hands.value.dealer))
         scores.value.skipped++
         deal()

@@ -25,6 +25,9 @@ export function loadFullPractice(random: boolean = false): Card[][] {
             if ([CardFace.JACK, CardFace.QUEEN, CardFace.KING].indexOf(r) > -1) {
                 return
             }
+            else if ((l === CardFace.TEN && r === CardFace.ACE) || (l === CardFace.ACE && r === CardFace.TEN)) {
+                return
+            }
             Object.entries(CardFace).forEach(([_, d]) => {
                 const hand = [new Card(CardSuit.SPADE, l), new Card(CardSuit.SPADE, r), new Card(CardSuit.SPADE, d)]
                 const lookup = [hand[0].value, hand[1].value, hand[2].value]
