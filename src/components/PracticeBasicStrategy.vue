@@ -114,6 +114,9 @@ function deal() {
         else if (hands.value.ignore.indexOf("ACE") > -1 && hands.value.player[0].value !== 11 && hands.value.player[1].value !== 11) {
             break
         }
+        else if (hands.value.ignore.indexOf("HARD") > -1) {
+            break
+        }
 
         discardPile.push(hand[0])
         scores.value.skipped++
@@ -175,6 +178,11 @@ function filter(filter: string) {
         deal()
     }
     else if (hands.value.ignore.indexOf("ACE") > -1 && (hands.value.player[0].value === 11 || hands.value.player[1].value === 11)) {
+        discardPile.push(hands.value.player.concat(hands.value.dealer))
+        scores.value.skipped++
+        deal()
+    }
+    else if (hands.value.ignore.indexOf("HARD") > -1) {
         discardPile.push(hands.value.player.concat(hands.value.dealer))
         scores.value.skipped++
         deal()
@@ -264,6 +272,7 @@ deal()
             <h4>Rules</h4>
             <h5 v-if="hands.ignore.indexOf('PAIR') > -1">Ignore Soft</h5>
             <h5 v-if="hands.ignore.indexOf('ACE') > -1">Ignore Split</h5>
+            <h5 v-if="hands.ignore.indexOf('HARD') > -1">Ignore Hard</h5>
         </div>
     </div>
 
@@ -299,6 +308,13 @@ deal()
 
     <br />
     <div class="bjck-practice-section">
+        <div class="bjck-practice-button" @click="filter('HARD')">
+            HARD
+            <div v-if="hands.ignore.indexOf('HARD') > -1">
+                <CrossOut />
+            </div>
+        </div>
+        <div class="bjck-practice-section-divider"></div>
         <div class="bjck-practice-button" @click="filter('PAIR')">
             SPLIT
             <div v-if="hands.ignore.indexOf('PAIR') > -1">
