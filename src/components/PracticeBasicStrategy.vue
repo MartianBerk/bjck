@@ -269,6 +269,7 @@ deal()
 </script>
 
 <template>
+    <br />
     <div class="bjck-practice-section">
         <div>
             <h4>Scores</h4>
