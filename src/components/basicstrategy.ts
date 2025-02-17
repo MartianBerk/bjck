@@ -177,6 +177,7 @@ export class BasicStrategy {
             if (!play) {
                 return this.getPlay(cards, dealer, true)
             }
+            return play
         }
 
         return this.hardChart[playerLookup][dealerLookup]
