@@ -6,6 +6,7 @@ import { Card } from "./cards"
 import { Play } from "./play"
 import CardView from "./CardView.vue"
 import CrossOut from "./icons/CrossOut.vue"
+import Pause from "./icons/Pause.vue"
 
 const strategy = new BasicStrategy()
 let practiceCards: Card[][] = loadFullPractice(true)
@@ -34,6 +35,10 @@ type Scores = {
     skipped: number,
     remaining: Function,
     avgTime: Function,
+}
+
+type Timer = {
+    paused: boolean
 }
 
 const _lastHand: LastHand = {
@@ -88,8 +93,13 @@ const _scores: Scores = {
     }
 }
 
+const _timer: Timer = {
+    paused: false
+}
+
 const hands = ref(_hands)
 const scores = ref(_scores)
+const timer = ref(_timer)
 
 function deal() {
     let hand = practiceCards.splice(0, 1)
@@ -116,6 +126,10 @@ function deal() {
 }
 
 function play(move: Play) {
+    if (timer.value.paused) {
+        pause()
+    }
+
     const play = strategy.getPlay(hands.value.player, hands.value.dealer[0], false)
     if (move === play) {
         scores.value.correct++
@@ -167,6 +181,12 @@ function filter(filter: string) {
     }
 }
 
+function pause() {
+    if (startTime) {
+        timer.value.paused = !timer.value.paused
+    }
+}
+
 function renderTimer(avgBy: number|null) {
     if (!startTime || !interval) {
         return ""
@@ -195,18 +215,20 @@ function renderTimer(avgBy: number|null) {
     let [hrs, mins, secs] = [...segment(time)]
     let [hrS, minS, secS] = [...["", "", ""]]
 
-    if (hrs < 10) { hrS = "0" + hrs.toString() }
-    if (mins < 10) { minS = "0" + mins.toString() }
-    if (secs < 10) { secS = "0" + secs.toString() }
+    hrS = hrs < 10 ? "0" + hrs.toString() : hrs.toString()
+    minS = mins < 10 ? "0" + mins.toString() : mins.toString()
+    secS = secs < 10 ? "0" + secs.toString() : secs.toString()
 
     return `${hrS}:${minS}:${secS}`
 }
 
 const startTimer = setInterval(() => {
-    if (!startTime) {
-        startTime = new Date()
+    if (!timer.value.paused) {
+        if (!startTime) {
+            startTime = new Date()
+        }
+        interval = new Date()
     }
-    interval = new Date()
 }, 100)
 
 const stopTimer = () => clearInterval(startTimer)
@@ -288,6 +310,13 @@ deal()
             SOFT
             <div v-if="hands.ignore.indexOf('ACE') > -1">
                 <CrossOut />
+            </div>
+        </div>
+        <div class="bjck-practice-section-divider"></div>
+        <div class="bjck-practice-button" @click="pause()">
+            PAUSE
+            <div v-if="timer.paused">
+                <Pause />
             </div>
         </div>
         <div class="bjck-practice-section-divider"></div>
