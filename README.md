@@ -31,3 +31,8 @@ npm run dev
 ```sh
 npm run build
 ```
+
+### Deployment
+```sh
+scp -r dist/* <webdocs>
+```
