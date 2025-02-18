@@ -115,7 +115,7 @@ function deal() {
     // Filtering
     while (hands.value.ignore.length > 0 && practiceCards.length > 0) {
         const isPair = hands.value.player[0].value === hands.value.player[1].value
-        const isSoft = hands.value.player[0].value === 11 || hands.value.player[1].value === 11
+        const isSoft = !isPair && (hands.value.player[0].value === 11 || hands.value.player[1].value === 11)
         const isHard = !isSoft && !isPair
         
         const filterPair = hands.value.ignore.indexOf("PAIR") > -1 && isPair
@@ -188,7 +188,7 @@ function filter(filter: string) {
     }
 
     const isPair = hands.value.player[0].value === hands.value.player[1].value
-    const isSoft = hands.value.player[0].value === 11 || hands.value.player[1].value === 11
+    const isSoft = !isPair && (hands.value.player[0].value === 11 || hands.value.player[1].value === 11)
     const isHard = !isSoft && !isPair
     
     const filterPair = hands.value.ignore.indexOf("PAIR") > -1 && isPair
@@ -229,7 +229,6 @@ function renderTimer(avgBy: number|null) {
     }
 
     const segment = (t: number) => {
-        t = t / 1000
         const secs = t % 60
         t = t / 60
         const mins = t % 60
@@ -243,6 +242,7 @@ function renderTimer(avgBy: number|null) {
         return ""
     }
 
+    time = time / 1000
     let [hrs, mins, secs] = [...segment(time)]
     let [hrS, minS, secS] = [...["", "", ""]]
 
