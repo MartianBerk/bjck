@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
 import BasicStrategyView from '@/views/BasicStrategyView.vue'
+import CountingView from '@/views/CountingView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -10,6 +10,14 @@ const router = createRouter({
       name: 'home',
       component: BasicStrategyView,
     },
+    {
+      path: '/count',
+      name: 'count',
+      // route level code-splitting
+      // this generates a separate chunk (About.[hash].js) for this route
+      // which is lazy-loaded when the route is visited.
+      component: CountingView,
+    }
     // {
     //   path: '/basic/practice',
     //   name: 'practicebasicstrategy',
