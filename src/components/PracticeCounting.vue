@@ -36,7 +36,8 @@ function start() {
     const deck = CardDeck.concat(CardDeck)
     shuffle(deck)
     count.value.deck = deck
-    counter()
+    count.value.discard = []
+    counter(true)
 }
 
 function draw() {
@@ -52,7 +53,11 @@ function toggleCount() {
     count.value.showCount = !count.value.showCount
 }
 
-function counter() {
+function counter(reset: boolean = false) {
+    if (reset) {
+        count.value.count = 0
+    }
+    
     if (settings.value.method === Method.OMEGA2) {
         switch (count.value.deck[0].value) {
             case 2:
@@ -79,7 +84,7 @@ function counter() {
                 count.value.count -= 1
                 break
             case 10:
-                count.value.count += 2
+                count.value.count -= 2
                 break
             case 11:
                 break
@@ -105,6 +110,10 @@ start()
         <div class="bjck-practice-section-divider"></div>
         <div class="bjck-practice-button" @click="toggleCount()">
             COUNT
+        </div>
+        <div class="bjck-practice-section-divider"></div>
+        <div class="bjck-practice-button" @click="start()">
+            RESET
         </div>
     </div>
 
