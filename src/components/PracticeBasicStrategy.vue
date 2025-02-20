@@ -12,21 +12,21 @@ const strategy = new BasicStrategy()
 let practiceCards: Card[][] = loadFullPractice(true)
 let discardPile: Card[][] = []
 let startTime: Date|null = null
+let lastHandTime: Date|null = null
 let interval: Date|null = null
 
-type LastHand = {
-    player: Function,
-    dealer: Function,
+type PlayedHand = {
+    player: Card[]|null,
+    dealer: Card|null,
     move: Play|null,
     expectedMove: Play|null,
-    time: Function,
-    index: number|null,  // keep track of the last hand in the discard pile
+    time: number|null
 }
 
 type Hands = {
     dealer: Card[],
     player: Card[],
-    lastHand: LastHand,
+    lastHand: PlayedHand|null,
     ignore: string[]
 }
 
@@ -42,46 +42,15 @@ type Timer = {
     paused: boolean
 }
 
-const _lastHand: LastHand = {
-    player: (cards: boolean = false) => {
-        if (hands.value.lastHand.index === null) {
-            return null
-        }
-
-        const playerCards = discardPile[hands.value.lastHand.index]
-        if (cards) {
-            const renderCard = (c: Card) => (c.value < 10 ? c.value : c.face[0])
-            return `${renderCard(playerCards[0])} ${renderCard(playerCards[1])}`
-        }
-        else {
-            return playerCards[0].value + playerCards[1].value
-        }
-    },
-    dealer: (cards: boolean = false) => {
-        if (hands.value.lastHand.index === null) {
-            return null
-        }
-
-        const dealerCard = discardPile[hands.value.lastHand.index][2]
-        if (cards) {
-            return dealerCard.value < 10 ? dealerCard.value : dealerCard.face[0]
-        }
-        else {
-            return dealerCard.value
-        }
-    },
-    move: null,
-    expectedMove: null,
-    time: () => {
-        return renderTimer(null)
-    },
-    index: null
+type Log = {
+    hands: PlayedHand[],
+    view: boolean
 }
 
 const _hands: Hands = {
     dealer: [],
     player: [],
-    lastHand: _lastHand,
+    lastHand: null,
     ignore: []
 }
 
@@ -91,7 +60,7 @@ const _scores: Scores = {
     skipped: 0,
     remaining: () => (practiceCards.length),
     avgTime: () => {
-        return renderTimer((scores.value.correct + scores.value.incorrect))
+        return renderTime(null, true)
     }
 }
 
@@ -99,9 +68,15 @@ const _timer: Timer = {
     paused: false
 }
 
+const _log: Log = {
+    hands: [],
+    view: false
+}
+
 const hands = ref(_hands)
 const scores = ref(_scores)
 const timer = ref(_timer)
+const log = ref(_log)
 
 function deal() {
     if (practiceCards.length === 0) {
@@ -131,7 +106,7 @@ function deal() {
         deal()
     }
 
-    if (scores.value.correct + scores.value.incorrect === 0) {
+    if (scores.value.correct + scores.value.incorrect > 0) {
         startTimer
     }
 }
@@ -139,10 +114,6 @@ function deal() {
 function play(move: Play) {
     if (practiceCards.length === 0) {
         return
-    }
-
-    if (timer.value.paused) {
-        pause()
     }
 
     const play = strategy.getPlay(hands.value.player, hands.value.dealer[0], false)
@@ -153,10 +124,23 @@ function play(move: Play) {
         scores.value.incorrect++
     }
 
-    hands.value.lastHand.move = move
-    hands.value.lastHand.expectedMove = play
+    const lastHand = {
+        player: hands.value.player,
+        dealer: hands.value.dealer[0],
+        move: move,
+        expectedMove: play,
+        time: interval && lastHandTime ? interval.getTime() - lastHandTime.getTime() : null 
+    }
+
+    lastHandTime = interval
+    hands.value.lastHand = lastHand
     discardPile.push(hands.value.player.concat(hands.value.dealer))
-    hands.value.lastHand.index = discardPile.length - 1
+    log.value.hands.push(lastHand)
+
+    if (timer.value.paused) {
+        pause()
+    }
+
     deal()
 }
 
@@ -165,16 +149,14 @@ function reset() {
 
     hands.value.player = []
     hands.value.dealer = []
-    hands.value.lastHand.move = null
-    hands.value.lastHand.expectedMove = null
+    hands.value.lastHand = null
     scores.value.correct = 0
     scores.value.incorrect = 0
     scores.value.skipped = 0
-    startTime = null
-    interval = null
 
     practiceCards = loadFullPractice(true)
     discardPile = []
+    log.value.hands = []
 
     deal()
 }
@@ -218,13 +200,23 @@ function pause() {
     }
 }
 
-function renderTimer(avgBy: number|null) {
-    if (!startTime || !interval) {
+function viewLog() {
+    log.value.view = !log.value.view
+}
+
+function renderTime(time: number|null, avg: boolean = false) {
+    if (!time && !startTime) {
+        return ""
+    }
+    else if (!time && startTime && interval) {
+        time = interval.getTime() - startTime.getTime()
+    }
+
+    if (time === null) {
         return ""
     }
 
-    let time = interval.getTime() - startTime.getTime()
-    if (avgBy) {
+    if (avg) {
         time = time / (scores.value.correct + scores.value.incorrect)
     }
 
@@ -235,7 +227,7 @@ function renderTimer(avgBy: number|null) {
         t = t / 60
         const hrs = t % 60
         t = t / 60
-        return [Math.floor(hrs), Math.floor(mins), Math.floor(secs)]
+        return [Math.round(hrs), Math.round(mins), Math.round(secs)]
     }
 
     if (isNaN(time)) {
@@ -253,14 +245,27 @@ function renderTimer(avgBy: number|null) {
     return `${hrS}:${minS}:${secS}`
 }
 
+const renderCards = (cards: Card[]) => {
+    let cardS = ""
+    cards.forEach((card, i) => {
+        cardS += `${card.value < 10 ? card.value : card.face[0]}`
+        if (i < cards.length - 1) {
+            cardS += " "
+        }
+    })
+    return cardS
+}
+const sumCards = (card: Card[]) => (card[0].value + (card.length > 1 ? card[1].value : 0))
+
 const startTimer = setInterval(() => {
     if (!timer.value.paused) {
         if (!startTime) {
             startTime = new Date()
+            lastHandTime = new Date()
         }
         interval = new Date()
     }
-}, 100)
+}, 1000)
 
 const stopTimer = () => clearInterval(startTimer)
 
@@ -282,8 +287,8 @@ deal()
         <div class="bjck-practice-section-divider-large"></div>
         <div>
             <h4>Last Move</h4>
-            <div v-if="hands.lastHand.move !== null">
-                <h5>{{ hands.lastHand.player(true) }} ({{ hands.lastHand.player() }}) Vs {{ hands.lastHand.dealer(true) }} ({{ hands.lastHand.dealer() }})</h5>
+            <div v-if="hands.lastHand && hands.lastHand.player && hands.lastHand.dealer && hands.lastHand.move">
+                <h5>{{ renderCards(hands.lastHand.player) }} ({{ sumCards(hands.lastHand.player) }}) Vs {{ renderCards([hands.lastHand.dealer]) }} ({{ sumCards([hands.lastHand.dealer]) }})</h5>
                 <h5>
                     <span v-if="hands.lastHand.move !== hands.lastHand.expectedMove" style="text-decoration: line-through;">{{ hands.lastHand.move }}</span>
                     {{ hands.lastHand.expectedMove }}
@@ -363,6 +368,20 @@ deal()
         <div class="bjck-practice-button" @click="reset()">
             RESET
         </div>
+        <div class="bjck-practice-section-divider"></div>
+        <div class="bjck-practice-button" @click="viewLog()">
+            LOG
+        </div>
+    </div>
+
+    <br />
+    <div class="bjck-practice-log" v-if="log.view" v-for="hand in log.hands">
+        <h5 v-if="hand.player && hand.dealer && hand.move">
+            {{ renderCards(hand.player) }} ({{ sumCards(hand.player) }}) Vs {{ renderCards([hand.dealer]) }} ({{ sumCards([hand.dealer]) }})
+            <span v-if="hand.move !== hand.expectedMove" style="text-decoration: line-through;">{{ hand.move }}</span>
+            {{ hand.expectedMove }}
+            {{ renderTime(hand.time) }}
+        </h5>
     </div>
 
 </template>
@@ -388,6 +407,10 @@ deal()
 
 .bjck-practice-button {
     cursor: pointer;
+}
+
+.bjck-practice-log {
+    text-align: center;
 }
 
 </style>
